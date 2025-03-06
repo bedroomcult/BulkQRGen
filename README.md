@@ -19,7 +19,7 @@ pip install qrcode[pil] pandas cairosvg pillow
 ## 🛠 Usage 
 
 ```bash
-python script.py [-i data.csv] [-o svg,pdf,png] [-size 500] [-m 20] [-logo logo.png] [-ani]
+python bulkqrgen.py [-i data.csv] [-o svg,pdf,png] [-size 500] [-m 20] [-logo logo.png] [-ani]
 ```
 
 ### 💡 Arguments  
