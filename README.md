@@ -1,6 +1,6 @@
 # BulkQRGen
 
-# QR Code Generator with SVG, PDF, and PNG Support  
+A QR Code Generator with SVG, PDF, and PNG Support based in Python
 
 This script generates **QR codes** from a CSV file, supports **SVG, PDF, and PNG formats**, and includes optional **logo embedding**. It features a **progress bar that dynamically adjusts to your terminal width** and tracks the **total & average processing time**.
 
