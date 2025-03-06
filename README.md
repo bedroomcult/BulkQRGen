@@ -37,27 +37,27 @@ python bulkqrgen.py [-i data.csv] [-o svg,pdf,png] [-size 500] [-m 20] [-logo lo
 
 ### Generate all formats (SVG, PDF, PNG) from `data.csv`  
 ```bash
-python script.py
+python bulkqrgen.py
 ```
 
 ### Generate only PDF and PNG (skip SVG output)  
 ```bash
-python script.py -o pdf,png
+python bulkqrgen.py -o pdf,png
 ```
 
 ### Use a logo in the QR code  
 ```bash
-python script.py -logo logo.png
+python bulkqrgen.py -logo logo.png
 ```
 
 ### Set custom QR code size and margin  
 ```bash
-python script.py -size 300 -m 10
+python bulkqrgen.py -size 300 -m 10
 ```
 
 ### Show animated QR codes in terminal while processing  
 ```bash
-python script.py -ani
+python bulkqrgen.py -ani
 ```
 
 ## 🎥 Animated Terminal QR Code  
