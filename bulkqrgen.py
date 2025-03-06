@@ -1,71 +1,45 @@
 import os
+import argparse
 import pandas as pd
 import qrcode
 import qrcode.image.svg
 import cairosvg
-from PIL import Image
+import shutil
 import sys
 import time
-import shutil  # <-- Added to detect terminal size
+import random
+import threading
 
-# --- User Inputs ---
-try:
-    generate_png = input("Do you want to generate PNG images? (y/n): ").strip().lower() == 'y'
+# --- Argument Parsing ---
+parser = argparse.ArgumentParser(description="Generate QR codes from a CSV file.")
+parser.add_argument("-i", "--input", default="data.csv", help="CSV file containing QR data (default: data.csv)")
+parser.add_argument("-logo", "--logo", help="Logo image file (PNG format, optional)")
+parser.add_argument("-o", "--output", default="svg,pdf,png", help="Output format: svg, pdf, png (default: all)")
+parser.add_argument("-size", "--size", type=int, default=500, help="QR code size in pixels (default: 500)")
+parser.add_argument("-m", "--margin", type=int, default=20, help="Margin size around QR code (default: 20px)")
+parser.add_argument("-ani", "--animate", action="store_true", help="Show animated 10x10 QR code cycling in terminal")
+args = parser.parse_args()
 
-    if generate_png:
-        use_logo = input("Do you want to add a logo? (y/n): ").strip().lower() == 'y'
-    
-    qr_size_input = int(input("Enter QR code size in pixels for SVG/PDF (e.g., 1000): ").strip())
+# --- Parse Arguments ---
+csv_filename = args.input
+logo_path = args.logo
+output_formats = args.output.split(",")
+qr_size = args.size
+margin_size = args.margin
+show_animation = args.animate
 
-except ValueError:
-    print("Invalid input. Please enter a valid number for the QR code size.")
-    exit()
+# --- Validate Output Formats ---
+valid_formats = {"svg", "pdf", "png"}
+if not set(output_formats).issubset(valid_formats):
+    print("Invalid output format! Use -o svg,pdf,png")
+    exit(1)
 
-# Input CSV file
-csv_filename = "data.csv"
-logo_path = "logo.png"
+# --- Set Up Output Directories ---
+output_dirs = {"svg": "qr_svgs", "pdf": "qr_pdfs", "png": "qr_pngs"}
+for fmt in valid_formats:
+    os.makedirs(output_dirs[fmt], exist_ok=True)
 
-# Output directories
-svg_dir = "qr_svgs"
-pdf_dir = "qr_pdfs"
-png_dir = "qr_pngs"
-os.makedirs(svg_dir, exist_ok=True)
-os.makedirs(pdf_dir, exist_ok=True)
-if generate_png:
-    os.makedirs(png_dir, exist_ok=True)
-
-# SVG/PDF QR Code Size (user-defined)
-qr_size_svg_pdf = qr_size_input
-
-# PNG Settings (Only if enabled)
-if generate_png:
-    png_size = 2048  # Fixed PNG output size
-    qr_size_ratio = 0.9  # QR code occupies 90% of the image
-    qr_size_png = int(png_size * qr_size_ratio)
-    margin_png = (png_size - qr_size_png) // 2
-
-    # Logo Settings (Only if PNG is enabled)
-    if use_logo:
-        logo_size_ratio = 0.2
-        logo_size_png = int(qr_size_png * logo_size_ratio)
-        border_ratio = 0.05
-        border_size = int(logo_size_png * border_ratio)
-
-        if os.path.exists(logo_path):
-            logo = Image.open(logo_path).convert("RGBA")
-            logo = logo.resize((logo_size_png, logo_size_png), Image.Resampling.LANCZOS)
-
-            # Create a white border
-            logo_with_border_size = logo_size_png + 2 * border_size
-            logo_with_border = Image.new("RGBA", (logo_with_border_size, logo_with_border_size), "white")
-            logo_with_border.paste(logo, (border_size, border_size), logo)
-        else:
-            print("\nWarning: Logo file not found. Continuing without a logo.")
-            use_logo = False
-    else:
-        logo_with_border = None
-
-# Read CSV file
+# --- Read CSV File ---
 try:
     df = pd.read_csv(csv_filename, header=None)
 except Exception as e:
@@ -74,72 +48,99 @@ except Exception as e:
 
 total_qr = len(df)
 
-# Function to update progress bar dynamically
-def update_progress(current, total):
-    terminal_width = shutil.get_terminal_size((80, 20)).columns  # Get terminal width
-    bar_length = max(20, terminal_width - 30)  # Adjust bar size
-    progress = int((current / total) * bar_length)
-    bar = "█" * progress + "-" * (bar_length - progress)
-    sys.stdout.write(f"\rGenerating QR Codes: [{bar}] {current}/{total}")
+# --- Animated 10x10 QR Code in Terminal ---
+def generate_random_qr_terminal():
+    qr_data = "".join(random.choice("01") for _ in range(10 * 10))
+    qr = qrcode.QRCode(version=1, box_size=1, border=0)
+    qr.add_data(qr_data)
+    qr.make(fit=True)
+    qr_matrix = qr.modules
+
+    output = "\033[H"  # Move cursor to the top
+    for row in qr_matrix:
+        output += "".join("█" if pixel else " " for pixel in row) + "\n"
+    
+    sys.stdout.write(output)
     sys.stdout.flush()
 
-# Start time tracking
-start_time = time.time()
+def animate_qr_terminal():
+    try:
+        while processing:
+            generate_random_qr_terminal()
+            time.sleep(0.3)  # Cycle one QR at a time with 0.3s delay
+    except KeyboardInterrupt:
+        pass
 
-# Generate QR codes
+# --- Time Tracking ---
+start_time = time.time()
+processing = True
+
+# Start animation if enabled
+if show_animation:
+    print("\033[2J")  # Clear screen
+    animation_thread = threading.Thread(target=animate_qr_terminal, daemon=True)
+    animation_thread.start()
+
+# --- Generate QR Codes ---
 for index, row in df.iterrows():
     data = str(row[0]).strip()
     if data:
-        svg_filename = os.path.join(svg_dir, f"qr_{index+1}.svg")
-        pdf_filename = os.path.join(pdf_dir, f"qr_{index+1}.pdf")
+        filenames = {
+            "svg": os.path.join(output_dirs["svg"], f"qr_{index+1}.svg"),
+            "pdf": os.path.join(output_dirs["pdf"], f"qr_{index+1}.pdf"),
+            "png": os.path.join(output_dirs["png"], f"qr_{index+1}.png")
+        }
 
-        # --- Generate QR Code ---
+        # --- Generate QR Code (SVG first) ---
         qr = qrcode.QRCode(
             version=None,
-            error_correction=qrcode.constants.ERROR_CORRECT_H,
+            error_correction=qrcode.constants.ERROR_CORRECT_H if logo_path else qrcode.constants.ERROR_CORRECT_L,
             box_size=10,
-            border=4
+            border=margin_size // 10
         )
         qr.add_data(data)
         qr.make(fit=True)
 
-        # Generate SVG QR code
+        # Always generate SVG
         qr_svg = qr.make_image(image_factory=qrcode.image.svg.SvgImage)
-        qr_svg.save(svg_filename)
+        qr_svg.save(filenames["svg"])
 
-        # Convert SVG to PDF
-        cairosvg.svg2pdf(url=svg_filename, write_to=pdf_filename)
+        # Convert to PDF
+        if "pdf" in output_formats:
+            cairosvg.svg2pdf(url=filenames["svg"], write_to=filenames["pdf"])
 
-        # --- Generate PNG (if enabled) ---
-        if generate_png:
-            png_filename = os.path.join(png_dir, f"qr_{index+1}.png")
+        # Convert to PNG
+        if "png" in output_formats:
+            from PIL import Image
 
-            # Create a white background image
+            png_size = 2048  
+            qr_size_ratio = 0.9
+            qr_size_png = int(png_size * qr_size_ratio)
+            margin_png = (png_size - qr_size_png) // 2
+
             img = Image.new("RGB", (png_size, png_size), "white")
-
-            # Generate high-res QR code
             qr_png = qr.make_image(fill_color="black", back_color="white").convert("RGB")
             qr_png = qr_png.resize((qr_size_png, qr_size_png), Image.Resampling.LANCZOS)
-
-            # Paste QR code onto the white background
             img.paste(qr_png, (margin_png, margin_png))
+            img.save(filenames["png"])
 
-            # Overlay logo with contour (if selected)
-            if use_logo and logo_with_border:
-                logo_position = ((png_size - logo_with_border_size) // 2, (png_size - logo_with_border_size) // 2)
-                img.paste(logo_with_border, logo_position, logo_with_border)
+# Stop animation
+processing = False
 
-            # Save PNG
-            img.save(png_filename)
+# --- Delete Unwanted SVG Files ---
+if "svg" not in output_formats:
+    for file in os.listdir(output_dirs["svg"]):
+        os.remove(os.path.join(output_dirs["svg"], file))
+    os.rmdir(output_dirs["svg"])
 
-        # Update progress bar
-        update_progress(index + 1, total_qr)
-
-# Finish time tracking
+# --- Time Tracking ---
 end_time = time.time()
 total_time = end_time - start_time
 average_time = total_time / total_qr if total_qr > 0 else 0
 
-# Finish progress bar
-print(f"\nQR code generation completed in {total_time:.2f} seconds.")
+# --- Clear Animation & Print Summary ---
+if show_animation:
+    print("\033[2J\033[H")  # Clear screen
+
+print(f"QR code generation completed in {total_time:.2f} seconds.")
 print(f"Average time per QR code: {average_time:.2f} seconds.")
