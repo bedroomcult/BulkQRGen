@@ -5,7 +5,7 @@ A command-line tool to generate QR codes from a CSV file in **SVG, PDF, and PNG*
 ## ⭐ Features  
 - ✅ **Generate QR codes** from a CSV file  
 -  ✅  **Supports SVG, PDF, and PNG** formats  
--  ✅  ***Supoports adding logo to QRCode (PNG Only)**
+-  ✅  **Supports adding logo** to QRCode (PNG Only)
 -  ✅  **Custom QR size and margin**  
 
 ## 📥 Installation  
